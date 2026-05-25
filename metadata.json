@@ -1,0 +1,6 @@
+{
+  "name": "Location Roaster",
+  "description": "Roasts any property location in Jakarta using Gemini and maps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
