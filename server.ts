@@ -72,7 +72,8 @@ async function startServer() {
         "https://overpass.osm.vi-di.fr/api/interpreter"
       ];
 
-      let response = null;
+      let responseText = null;
+      let fallbackEmptyJson = null;
       let lastError = null;
 
       for (const endpoint of endpoints) {
@@ -92,9 +93,22 @@ async function startServer() {
           clearTimeout(timeout);
 
           if (attempt.ok) {
-            response = attempt;
-            console.log(`[Overpass Proxy] Endpoint succeeded: ${endpoint}`);
-            break;
+            const text = await attempt.text();
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed.elements && parsed.elements.length > 0) {
+                responseText = text;
+                console.log(`[Overpass Proxy] Endpoint succeeded with data: ${endpoint}`);
+                break;
+              } else {
+                console.warn(`[Overpass Proxy] Endpoint ${endpoint} returned 200 but 0 elements.`);
+                if (!fallbackEmptyJson) {
+                  fallbackEmptyJson = text;
+                }
+              }
+            } catch (jsonErr) {
+              console.warn(`[Overpass Proxy] Endpoint ${endpoint} returned 200 but invalid JSON.`);
+            }
           } else {
             const errText = await attempt.text().catch(() => "");
             console.warn(`[Overpass Proxy] Endpoint ${endpoint} returned status ${attempt.status}: ${errText.substring(0, 100)}`);
@@ -106,14 +120,18 @@ async function startServer() {
         }
       }
 
-      if (!response) {
+      if (!responseText && fallbackEmptyJson) {
+        console.log("[Overpass Proxy] All endpoints failed to return elements. Falling back to empty valid JSON.");
+        responseText = fallbackEmptyJson;
+      }
+
+      if (!responseText) {
         return res.status(500).json({ 
           error: "All Overpass endpoints failed to resolve.", 
           detail: lastError ? lastError.message : "Unknown error" 
         });
       }
 
-      const responseText = await response.text();
       try {
         const data = JSON.parse(responseText);
         res.json(data);
