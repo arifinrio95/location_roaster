@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
@@ -63,89 +63,75 @@ async function startServer() {
       if (!query) {
         return res.status(400).json({ error: "Missing query" });
       }
-      
-      let response;
-      // 1. Try overpass-api.de first (best reliability/uptime)
-      try {
-        const ctrl1 = new AbortController();
-        const t1 = setTimeout(() => ctrl1.abort(), 35000); // 35s timeout
-        response = await fetch("https://overpass-api.de/api/interpreter", {
-          method: "POST",
-          body: `data=${encodeURIComponent(query)}`,
-          headers: {
-            "User-Agent": "LocationRoasterApplet/1.0 (arifinrio95@gmail.com)",
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
-          signal: ctrl1.signal,
-        });
-        clearTimeout(t1);
-      } catch (err) {
-        console.warn("DE fetch failed completely", err);
+
+      const endpoints = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+        "https://api.openstreetmap.fr/oapi/interpreter",
+        "https://overpass.osm.ch/api/interpreter",
+        "https://overpass.osm.vi-di.fr/api/interpreter"
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      for (const endpoint of endpoints) {
+        console.log(`[Overpass Proxy] Trying endpoint: ${endpoint}`);
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout per mirror
+          const attempt = await fetch(endpoint, {
+            method: "POST",
+            body: `data=${encodeURIComponent(query)}`,
+            headers: {
+              "User-Agent": "LocationRoasterApplet/1.0 (arifinrio95@gmail.com)",
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (attempt.ok) {
+            response = attempt;
+            console.log(`[Overpass Proxy] Endpoint succeeded: ${endpoint}`);
+            break;
+          } else {
+            const errText = await attempt.text().catch(() => "");
+            console.warn(`[Overpass Proxy] Endpoint ${endpoint} returned status ${attempt.status}: ${errText.substring(0, 100)}`);
+            lastError = new Error(`Status ${attempt.status}: ${errText}`);
+          }
+        } catch (err: any) {
+          console.warn(`[Overpass Proxy] Endpoint ${endpoint} failed completely:`, err.message || err);
+          lastError = err;
+        }
       }
-      
-      // 2. Fallback to kumi.systems
-      if (!response || !response.ok) {
-         console.warn("overpass-api.de failed, falling back to overpass.kumi.systems");
-         try {
-            const ctrl2 = new AbortController();
-            const t2 = setTimeout(() => ctrl2.abort(), 20000); // 20s timeout
-            response = await fetch("https://overpass.kumi.systems/api/interpreter", {
-               method: "POST",
-               body: `data=${encodeURIComponent(query)}`,
-               headers: {
-                 "User-Agent": "LocationRoasterApplet/1.0 (arifinrio95@gmail.com)",
-                 "Content-Type": "application/x-www-form-urlencoded"
-               },
-               signal: ctrl2.signal,
-            });
-            clearTimeout(t2);
-         } catch (err) {
-            console.warn("Kumi fetch failed completely", err);
-         }
-      }
-      
-      // 3. Fallback to openstreetmap.ru
-      if (!response || !response.ok) {
-         console.warn("overpass.kumi.systems failed, falling back to overpass.openstreetmap.ru");
-         try {
-            const ctrl3 = new AbortController();
-            const t3 = setTimeout(() => ctrl3.abort(), 20000); // 20s timeout
-            response = await fetch("https://overpass.openstreetmap.ru/api/interpreter", {
-               method: "POST",
-               body: `data=${encodeURIComponent(query)}`,
-               headers: {
-                 "User-Agent": "LocationRoasterApplet/1.0 (arifinrio95@gmail.com)",
-                 "Content-Type": "application/x-www-form-urlencoded"
-               },
-               signal: ctrl3.signal,
-            });
-            clearTimeout(t3);
-         } catch (err) {
-            console.warn("RU fetch failed completely", err);
-         }
-      }
-      
+
       if (!response) {
-        return res.status(500).json({ error: "All Overpass endpoints failed to resolve." });
+        return res.status(500).json({ 
+          error: "All Overpass endpoints failed to resolve.", 
+          detail: lastError ? lastError.message : "Unknown error" 
+        });
       }
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Overpass API error: ${response.status} ${response.statusText}`, errorText);
-        return res.status(response.status).json({ error: "Overpass API failure", detail: errorText });
-      }
-      
+
       const responseText = await response.text();
       try {
         const data = JSON.parse(responseText);
         res.json(data);
       } catch (err: any) {
-        console.error("Overpass JSON parse error. Raw response:", responseText.substring(0, 500));
-        res.status(500).json({ error: "Invalid JSON from Overpass", detail: err.message, raw: responseText.substring(0, 200) });
+        console.error("[Overpass Proxy] JSON parse error. Raw response:", responseText.substring(0, 500));
+        res.status(500).json({ 
+          error: "Invalid JSON from Overpass", 
+          detail: err.message, 
+          raw: responseText.substring(0, 200) 
+        });
       }
     } catch (error: any) {
-      console.error("Overpass proxy error:", error);
-      res.status(500).json({ error: "Failed to fetch from Overpass", detail: error.message, stack: error.stack });
+      console.error("[Overpass Proxy] Unexpected proxy error:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch from Overpass", 
+        detail: error.message, 
+        stack: error.stack 
+      });
     }
   });
 
