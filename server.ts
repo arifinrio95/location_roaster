@@ -194,7 +194,11 @@ async function startServer() {
 
       try {
         const data = JSON.parse(responseText);
-        overpassCache.set(cacheKey, { data, expiresAt: Date.now() + 24 * 60 * 60 * 1000 }); // 24h cache
+        if (data && data.elements && data.elements.length > 0) {
+          overpassCache.set(cacheKey, { data, expiresAt: Date.now() + 24 * 60 * 60 * 1000 }); // 24h cache
+        } else {
+          console.warn("[Overpass Proxy] Not caching empty elements response.");
+        }
         res.json(data);
       } catch (err: any) {
         console.error("[Overpass Proxy] JSON parse error. Raw response:", responseText.substring(0, 500));
