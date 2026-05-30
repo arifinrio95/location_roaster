@@ -130,7 +130,7 @@ async function startServer() {
         console.log(`[Overpass Proxy] Trying endpoint: ${endpoint}`);
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout per mirror
+          const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout per mirror
           const attempt = await fetch(endpoint, {
             method: "POST",
             body: `data=${encodeURIComponent(query)}`,
