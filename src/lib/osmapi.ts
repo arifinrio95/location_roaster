@@ -22,23 +22,33 @@ export async function fetchOsmNearAmenities(latParam: number, lngParam: number) 
       return [];
   }
 
-  // Query for comprehensive POIs around the location using nw (node, way) for performance
+  // Calculate 3000m bounding box
+  const deltaLat = 3000 / 111000;
+  const deltaLng = 3000 / (111000 * Math.cos(lat * Math.PI / 180));
+  
+  const s = lat - deltaLat;
+  const n = lat + deltaLat;
+  const w = lng - deltaLng;
+  const e = lng + deltaLng;
+
+  // Query for comprehensive POIs around the location using bounding box for performance
   const query = `
-    [out:json][timeout:25];
+    [out:json][timeout:25][bbox:${s},${w},${n},${e}];
     (
-      way["highway"~"primary|motorway"](around:1000, ${lat}, ${lng});
-      node["highway"~"bus_stop|platform"](around:5000, ${lat}, ${lng});
-      node["railway"="station"](around:10000, ${lat}, ${lng});
-      way["railway"~"rail|narrow_gauge"](around:5000, ${lat}, ${lng});
-      node["power"~"tower|substation"](around:5000, ${lat}, ${lng});
-      node["man_made"~"tower|storage_tank|works"](around:5000, ${lat}, ${lng});
-      nw["landuse"~"cemetery|landfill|industrial"](around:5000, ${lat}, ${lng});
-      nw["amenity"~"grave_yard|waste_transfer_station|waste_disposal|marketplace"](around:5000, ${lat}, ${lng});
-      node["amenity"~"hospital|clinic|pharmacy|police|fire_station|school|university|restaurant|cafe|bank|atm"]["name"](around:5000, ${lat}, ${lng});
-      node["shop"~"mall|supermarket|convenience"]["name"](around:5000, ${lat}, ${lng});
-      way["waterway"~"river|canal|stream|drain"](around:5000, ${lat}, ${lng});
-      nw["natural"="water"](around:5000, ${lat}, ${lng});
-      nw["leisure"~"park|garden"](around:5000, ${lat}, ${lng});
+      way["highway"~"primary|motorway"];
+      node["highway"~"bus_stop|platform"];
+      node["railway"="station"];
+      way["railway"~"rail|narrow_gauge"];
+      node["power"~"tower|substation"];
+      node["man_made"~"tower|storage_tank|works"];
+      nw["landuse"~"cemetery|landfill|industrial"];
+      nw["amenity"~"grave_yard|waste_transfer_station|waste_disposal|marketplace"];
+      node["amenity"~"hospital|clinic|pharmacy|police|fire_station|school|university"];
+      node["amenity"~"restaurant|cafe|bank|atm"]["name"];
+      node["shop"~"mall|supermarket|convenience"]["name"];
+      way["waterway"~"river|canal|stream|drain"];
+      nw["natural"="water"];
+      nw["leisure"~"park|garden"];
     );
     out center;
   `;
