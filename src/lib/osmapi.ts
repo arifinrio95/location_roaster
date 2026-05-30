@@ -31,24 +31,27 @@ export async function fetchOsmNearAmenities(latParam: number, lngParam: number) 
   const w = lng - deltaLng;
   const e = lng + deltaLng;
 
-  // Query for comprehensive POIs around the location using bounding box for performance
+  const b = `(${s},${w},${n},${e})`;
+  
+  // Query for comprehensive POIs around the location. 
+  // We use the 3km bbox for everything, except railway=station which gets a 10km radius.
   const query = `
-    [out:json][timeout:25][bbox:${s},${w},${n},${e}];
+    [out:json][timeout:25];
     (
-      way["highway"~"primary|motorway"];
-      node["highway"~"bus_stop|platform"];
-      node["railway"="station"];
-      way["railway"~"rail|narrow_gauge"];
-      node["power"~"tower|substation"];
-      node["man_made"~"tower|storage_tank|works"];
-      nw["landuse"~"cemetery|landfill|industrial"];
-      nw["amenity"~"grave_yard|waste_transfer_station|waste_disposal|marketplace"];
-      node["amenity"~"hospital|clinic|pharmacy|police|fire_station|school|university"];
-      node["amenity"~"restaurant|cafe|bank|atm"]["name"];
-      node["shop"~"mall|supermarket|convenience"]["name"];
-      way["waterway"~"river|canal|stream|drain"];
-      nw["natural"="water"];
-      nw["leisure"~"park|garden"];
+      way["highway"~"primary|motorway"]${b};
+      node["highway"~"bus_stop|platform"]${b};
+      node["railway"="station"](around:10000, ${lat}, ${lng});
+      way["railway"~"rail|narrow_gauge"]${b};
+      node["power"~"tower|substation"]${b};
+      node["man_made"~"tower|storage_tank|works"]${b};
+      nw["landuse"~"cemetery|landfill|industrial"]${b};
+      nw["amenity"~"grave_yard|waste_transfer_station|waste_disposal|marketplace"]${b};
+      node["amenity"~"hospital|clinic|pharmacy|police|fire_station|school|university"]${b};
+      node["amenity"~"restaurant|cafe|bank|atm"]["name"]${b};
+      node["shop"~"mall|supermarket|convenience"]["name"]${b};
+      way["waterway"~"river|canal|stream|drain"]${b};
+      nw["natural"="water"]${b};
+      nw["leisure"~"park|garden"]${b};
     );
     out center;
   `;
