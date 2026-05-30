@@ -251,7 +251,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLocationSelected }) 
               className="font-bold text-slate-900 tracking-tight leading-tight mb-4"
               style={{ fontSize: "clamp(2.1rem, 4.2vw, 3.25rem)" }}
             >
-              Katanya 5 Menit Ke Tol?<br />Roast Dulu Biar Gak Dongkol.
+              Katanya 5 Menit Ke Tol?<br />Cek Dulu Biar Gak Dongkol.
             </h1>
             <p className="text-sm text-slate-500 font-medium leading-relaxed max-w-lg">
               Jangan gampang percaya jargon "Bebas Banjir", "Green Living", atau "Akses Eksklusif" di brosur marketing. AI kami langsung memindai data spasial riil OpenStreetMap untuk membedah fakta lapangan—mulai dari banjir tahunan, tiang SUTET gaib, stasiun KRL yang ternyata jauh, hingga kemacetan parah di depan gerbang. Cepat, tajam, dan tanpa filter sebelum kamu terikat cicilan KPR 30 tahun.

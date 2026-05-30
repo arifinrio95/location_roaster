@@ -892,6 +892,61 @@ export const JudgementPage: React.FC<JudgementPageProps> = ({ location, onReset 
             <div style={{ padding: '2px 8px', borderRadius: 4, background: `${scoreColor}15`, color: scoreColor, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
               {cat(data.score)}
             </div>
+            
+            {/* Limitation Warning Tooltip */}
+            <div className="limit-tooltip-container" style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'help' }}>
+              <style>{`
+                .limit-tooltip {
+                  visibility: hidden;
+                  opacity: 0;
+                  width: 320px;
+                  background-color: #1c1c1e;
+                  color: rgba(255,255,255,0.9);
+                  text-align: left;
+                  border-radius: 8px;
+                  padding: 14px 16px;
+                  position: absolute;
+                  z-index: 999;
+                  top: 150%;
+                  left: 50%;
+                  transform: translateX(-50%) translateY(-5px);
+                  transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+                  font-size: 11px;
+                  line-height: 1.45;
+                  font-family: ${SANS};
+                  font-weight: 400;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                }
+                .limit-tooltip::after {
+                  content: "";
+                  position: absolute;
+                  bottom: 100%;
+                  left: 50%;
+                  margin-left: -5px;
+                  border-width: 5px;
+                  border-style: solid;
+                  border-color: transparent transparent #1c1c1e transparent;
+                }
+                .limit-tooltip-container:hover .limit-tooltip {
+                  visibility: visible;
+                  opacity: 1;
+                  transform: translateX(-50%) translateY(0);
+                }
+                .limit-ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+              `}</style>
+              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="#ff9500" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="limit-tooltip">
+                <strong style={{ display: 'block', marginBottom: 6, color: '#ff9500', fontSize: 12 }}>⚠️ Limitasi Sistem</strong>
+                <ul className="limit-ul">
+                  <li>Data POI menggunakan Overpass API (OSM) gratis yang <b>sangat kurang lengkap/detail</b> dibanding Google Places API. (Feel free to collaborate jika ada yang mau membiayai API-nya 🚀)</li>
+                  <li>AI (Gemini) dapat berhalusinasi. Akurasi analisis sangat bergantung pada ketersediaan data POI di atas.</li>
+                  <li>Geocoding koordinat menjadi alamat (Nominatim) menggunakan radius, sehingga hasil alamat mungkin sedikit meleset dari lokasi riil.</li>
+                  <li>Aplikasi rentan terkena <i>Rate Limit</i> dari Overpass API publik.</li>
+                </ul>
+              </div>
+            </div>
           </div>
           <h1 style={{ fontSize: 38, fontWeight: 800, color: INK, letterSpacing: '-0.03em', margin: '0 0 8px', lineHeight: 1.15 }}>
             {location.displayName.split(',')[0]}
