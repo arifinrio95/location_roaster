@@ -266,6 +266,7 @@ async function startServer() {
     smallest: string;
     kelurahan: string;
     kecamatan: string;
+    city: string;
     full: string;
     searchBase: string;
   }
@@ -307,6 +308,8 @@ async function startServer() {
     const kecamatan = addr.municipality || addr.city_district || addr.subdistrict || addr.town || parts[2] || "";
     const full = parts.slice(0, 5).join(", ");
     
+    const city = addr.city || addr.county || addr.state || parts[3] || "";
+    
     let subdistrictIndex = -1;
     const kecamatanLower = kecamatan.toLowerCase().trim();
     if (kecamatanLower) {
@@ -317,7 +320,6 @@ async function startServer() {
     }
     
     if (subdistrictIndex === -1) {
-      const city = addr.city || addr.county || addr.state || "";
       const cityLower = city.toLowerCase().trim();
       if (cityLower) {
         const cityIndex = parts.findIndex(p => {
@@ -336,7 +338,7 @@ async function startServer() {
 
     const searchBase = parts.slice(0, subdistrictIndex + 1).join(", ");
     
-    return { smallest, kelurahan, kecamatan, full, searchBase };
+    return { smallest, kelurahan, kecamatan, city, full, searchBase };
   }
 
   function generateSearchQueries(kelurahanKecamatan: string): string[] {
@@ -620,9 +622,9 @@ Return JSON sesuai schema.`;
     console.log("[Pipeline] Area details:", areaDetails);
 
     // Skip Gemini hallucination by using Nominatim's structured data directly
-    const kelKecArray = [areaDetails.kelurahan, areaDetails.kecamatan].filter(Boolean);
-    const kelurahanKecamatan = kelKecArray.length > 0 ? kelKecArray.join(", ") : areaDetails.smallest;
-    console.log("[Pipeline] Extracted Kelurahan/Kecamatan:", kelurahanKecamatan);
+    const kelKecArray = [areaDetails.kelurahan, areaDetails.kecamatan, areaDetails.city].filter(Boolean);
+    const kelurahanKecamatan = kelKecArray.length > 0 ? kelKecArray.join(" ") : areaDetails.smallest;
+    console.log("[Pipeline] Extracted Location for Search:", kelurahanKecamatan);
 
     const queries = generateSearchQueries(kelurahanKecamatan);
     console.log("[Pipeline] Search queries:", queries);
