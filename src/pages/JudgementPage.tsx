@@ -349,7 +349,7 @@ export const JudgementPage: React.FC<JudgementPageProps> = ({ location, onReset 
       "Filtering out hallucinated and non-200 URLs...",
       "Formatting data package context (distinct POIs)...",
       "Injecting verified news context into AI prompt...",
-      "Calling Gemini 3.1 Flash-Lite synthesis engine...",
+      "Calling Gemini AI synthesis engine...",
       "Running temperature 1.0 creativity parameter...",
       "Generating Jaksel style roast content...",
       "Validating JSON output schema adherence...",
@@ -647,7 +647,7 @@ export const JudgementPage: React.FC<JudgementPageProps> = ({ location, onReset 
                   </div>
                   <div>
                     <h4 style={{ fontSize:13, fontWeight:700, color: INK, margin:0 }}>1. Coordinates Input & Address Extraction</h4>
-                    <p style={{ fontSize:11, color: MUTED, margin:'2px 0 0' }}>Nominatim API menyelesaikan koordinat menjadi teks alamat, dilanjutkan request Gemini AI (2.5 Flash) terpisah untuk mengekstrak Kelurahan & Kecamatan secara presisi.</p>
+                    <p style={{ fontSize:11, color: MUTED, margin:'2px 0 0' }}>Nominatim API menyelesaikan koordinat menjadi teks alamat, dilanjutkan request Gemini AI terpisah untuk mengekstrak Kelurahan & Kecamatan secara presisi.</p>
                   </div>
                 </div>
 
