@@ -2,7 +2,8 @@ import { LocationResult, OsmAmenity, RoastResult } from "../types";
 
 export async function generateRoast(
   location: LocationResult,
-  amenities: OsmAmenity[]
+  amenities: OsmAmenity[],
+  onProgress?: (status: string) => void
 ): Promise<RoastResult> {
   // 1. Submit job to queue
   const response = await fetch("/api/roast", {
@@ -34,6 +35,10 @@ export async function generateRoast(
     }
 
     const statusData = await statusRes.json();
+    
+    if (onProgress) {
+      onProgress(statusData.status);
+    }
     
     if (statusData.status === "completed") {
       return statusData.result as RoastResult;

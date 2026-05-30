@@ -248,6 +248,7 @@ export const JudgementPage: React.FC<JudgementPageProps> = ({ location, onReset 
   const [amenitiesData,setAmenitiesData]= useState<any[]>([]);
   const [error,        setError]        = useState("");
   const [loadingPhase, setLoadingPhase] = useState<0|1|2>(0);
+  const [jobStatus,    setJobStatus]    = useState<string>("init");
   const [hoveredRow,   setHoveredRow]   = useState<string|number|null>(null);
   const [activePoiTab, setActivePoiTab] = useState("hazards");
   const [showUnnamed,  setShowUnnamed]  = useState(false);
@@ -294,7 +295,9 @@ export const JudgementPage: React.FC<JudgementPageProps> = ({ location, onReset 
         if (!active) return;
         setAmenitiesData(am);
         setLoadingPhase(2);
-        const res = await generateRoast(location, am);
+        const res = await generateRoast(location, am, (status) => {
+          if (active) setJobStatus(status);
+        });
         if (!active) return;
         setData(res);
       } catch (e: any) {
@@ -507,7 +510,12 @@ export const JudgementPage: React.FC<JudgementPageProps> = ({ location, onReset 
   const steps = [
     { label:'Scanning geospatial data',    detail:'OpenStreetMap · Overpass API' },
     { label:'Collecting points of interest',detail:'Flood · Safety · Transit · Hazard' },
-    { label:'Generating AI risk analysis', detail:'Gemini AI · location intelligence' },
+    { 
+      label: jobStatus === 'pending' ? 'Server penuh, masuk antrian...' 
+           : jobStatus === 'processing' ? 'AI sedang menganalisis lokasi...' 
+           : 'Generating AI risk analysis', 
+      detail: jobStatus === 'pending' ? 'Menunggu giliran di antrian server...' : 'Gemini AI · location intelligence' 
+    },
   ];
   if (!data) {
     return (
