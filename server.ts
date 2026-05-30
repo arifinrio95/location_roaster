@@ -302,9 +302,9 @@ async function startServer() {
     }
 
     const parts = displayName.split(",").map((p: string) => p.trim()).filter(Boolean);
-    const smallest = parts[0] || addr.residential || addr.neighbourhood || addr.allotments || addr.road || "";
-    const kelurahan = parts[1] || addr.suburb || addr.quarter || addr.village || addr.hamlet || "";
-    const kecamatan = addr.city_district || addr.subdistrict || addr.town || addr.municipality || parts[3] || parts[2] || "";
+    const smallest = addr.residential || addr.neighbourhood || addr.allotments || addr.road || parts[0] || "";
+    const kelurahan = addr.village || addr.suburb || addr.quarter || addr.hamlet || parts[1] || "";
+    const kecamatan = addr.municipality || addr.city_district || addr.subdistrict || addr.town || parts[2] || "";
     const full = parts.slice(0, 5).join(", ");
     
     let subdistrictIndex = -1;
@@ -337,26 +337,6 @@ async function startServer() {
     const searchBase = parts.slice(0, subdistrictIndex + 1).join(", ");
     
     return { smallest, kelurahan, kecamatan, full, searchBase };
-  }
-
-  async function extractKelurahanKecamatan(locationDisplayName: string): Promise<string> {
-    const genAI = getGenAI();
-    const prompt = `Ekstrak nama Kelurahan dan Kecamatan dari alamat berikut di Indonesia.
-Format output wajib: "NamaKelurahan, NamaKecamatan" saja (contoh: "Maruga, Ciputat"). Jangan ada penjelasan lain, jangan ada kata pembuka atau penutup. Jika kelurahan atau kecamatan tidak dapat diidentifikasi secara pasti dari teks, tebak berdasarkan kemiripan nama daerah yang ada di teks alamat tersebut.
-
-Alamat: ${locationDisplayName}`;
-
-    try {
-      const response = await genAI.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: prompt,
-      });
-      return response.text?.trim() || "";
-    } catch (err) {
-      console.error("Failed to extract Kelurahan/Kecamatan using LLM:", err);
-      const parts = locationDisplayName.split(',').map(p => p.trim());
-      return `${parts[1] || ""}, ${parts[2] || ""}`;
-    }
   }
 
   function generateSearchQueries(kelurahanKecamatan: string): string[] {
@@ -639,7 +619,9 @@ Return JSON sesuai schema.`;
     const areaDetails = await getAreaDetails(location.lat, location.lng, location.displayName);
     console.log("[Pipeline] Area details:", areaDetails);
 
-    const kelurahanKecamatan = await extractKelurahanKecamatan(areaDetails.full);
+    // Skip Gemini hallucination by using Nominatim's structured data directly
+    const kelKecArray = [areaDetails.kelurahan, areaDetails.kecamatan].filter(Boolean);
+    const kelurahanKecamatan = kelKecArray.length > 0 ? kelKecArray.join(", ") : areaDetails.smallest;
     console.log("[Pipeline] Extracted Kelurahan/Kecamatan:", kelurahanKecamatan);
 
     const queries = generateSearchQueries(kelurahanKecamatan);
