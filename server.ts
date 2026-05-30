@@ -45,9 +45,7 @@ async function startServer() {
     return true;
   }
 
-  // In-Memory Caches
-  const overpassCache = new Map<string, { data: any, expiresAt: number }>();
-  const roastCache = new Map<string, { data: RoastResult, expiresAt: number }>();
+
 
   // Async Jobs State
   interface JobState {
@@ -113,12 +111,7 @@ async function startServer() {
         return res.status(400).json({ error: "Missing query" });
       }
 
-      const cacheKey = query;
-      const cached = overpassCache.get(cacheKey);
-      if (cached && cached.expiresAt > Date.now()) {
-        console.log("[Overpass Proxy] Cache hit!");
-        return res.json(cached.data);
-      }
+
 
       const endpoints = [
         "https://overpass-api.de/api/interpreter",
@@ -194,11 +187,6 @@ async function startServer() {
 
       try {
         const data = JSON.parse(responseText);
-        if (data && data.elements && data.elements.length > 0) {
-          overpassCache.set(cacheKey, { data, expiresAt: Date.now() + 24 * 60 * 60 * 1000 }); // 24h cache
-        } else {
-          console.warn("[Overpass Proxy] Not caching empty elements response.");
-        }
         res.json(data);
       } catch (err: any) {
         console.error("[Overpass Proxy] JSON parse error. Raw response:", responseText.substring(0, 500));
@@ -844,18 +832,7 @@ Return JSON sesuai schema.`;
         return res.status(400).json({ error: "Missing location or amenities" });
       }
       
-      const cacheKey = `${Math.round(location.lat * 1000) / 1000},${Math.round(location.lng * 1000) / 1000}`;
-      const cached = roastCache.get(cacheKey);
-      if (cached && cached.expiresAt > Date.now()) {
-        console.log(`[API ROAST] Cache hit for: ${location.displayName}`);
-        const jobId = `cached-${Date.now()}`;
-        jobs.set(jobId, {
-          status: "completed",
-          result: cached.data,
-          expiresAt: Date.now() + 60 * 60 * 1000 // 1 hour for frontend to grab
-        });
-        return res.json({ jobId });
-      }
+
       
       const jobId = `job-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       jobs.set(jobId, { status: "pending", expiresAt: Date.now() + 60 * 60 * 1000 });
@@ -872,7 +849,6 @@ Return JSON sesuai schema.`;
            const result = await executeRoastPipeline(location, amenities);
            job.status = "completed";
            job.result = result;
-           roastCache.set(cacheKey, { data: result, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 }); // 7 days
            console.log(`[API ROAST] Successfully completed job ${jobId}`);
         } catch (e: any) {
            console.error(`[API ROAST] Error executing job ${jobId}:`, e);
