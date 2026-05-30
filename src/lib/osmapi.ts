@@ -57,7 +57,7 @@ export async function fetchOsmNearAmenities(latParam: number, lngParam: number) 
   for (let i = 0; i < 3; i++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000); // 60s per attempt
+      const timeout = setTimeout(() => controller.abort(), 90000); // 90s per attempt
       res = await fetch("/api/overpass", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
