@@ -15,7 +15,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "10mb" }));
 
   // Proxy for Nominatim to avoid CORS and 429 on client side
   app.get("/api/nominatim", async (req, res) => {
@@ -66,6 +66,7 @@ async function startServer() {
 
       const endpoints = [
         "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
         "https://overpass.private.coffee/api/interpreter",
         "https://api.openstreetmap.fr/oapi/interpreter",
         "https://overpass.osm.ch/api/interpreter",
@@ -96,7 +97,10 @@ async function startServer() {
             const text = await attempt.text();
             try {
               const parsed = JSON.parse(text);
-              if (parsed.elements && parsed.elements.length > 0) {
+              if (parsed.remark) {
+                console.warn(`[Overpass Proxy] Endpoint ${endpoint} returned 200 but contains runtime remark error: ${parsed.remark}`);
+                lastError = new Error(`Overpass runtime error: ${parsed.remark}`);
+              } else if (parsed.elements && parsed.elements.length > 0) {
                 responseText = text;
                 console.log(`[Overpass Proxy] Endpoint succeeded with data: ${endpoint}`);
                 break;
