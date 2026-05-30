@@ -55,35 +55,62 @@ export async function fetchOsmNearAmenities(latParam: number, lngParam: number) 
     );
     out center;
   `;
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.osm.ch/api/interpreter",
+    "https://api.openstreetmap.fr/oapi/interpreter"
+  ];
+
   let res: Response | null = null;
   let text = "";
-  for (let i = 0; i < 3; i++) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000); // 120s per attempt
-      res = await fetch("/api/overpass", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      text = await res.text();
-      if (res.ok && !text.includes("Starting Server...")) {
-         break;
+  let success = false;
+
+  for (const endpoint of endpoints) {
+    for (let i = 0; i < 2; i++) { // Max 2 attempts per mirror
+      try {
+        console.log(`[OSM] Trying ${endpoint} (Attempt ${i+1})...`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25000); // 25s per attempt
+        
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json"
+          },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeout);
+        
+        if (res.ok) {
+          text = await res.text();
+          // Check if it's a valid JSON with elements
+          try {
+            const parsed = JSON.parse(text);
+            if (!parsed.remark && parsed.elements) {
+              success = true;
+              break;
+            }
+          } catch (e) {
+            // Not valid JSON
+          }
+        }
+        
+        console.warn(`[OSM] ${endpoint} failed (status ${res?.status})`);
+      } catch (e) {
+        console.warn(`[OSM] Fetch error on ${endpoint}:`, e);
       }
-      // Any failure (HTTP error or "Starting Server...") — wait and retry
-      const waitMs = text.includes("Starting Server...") ? 2000 : 1500 * (i + 1);
-      console.warn(`Overpass attempt ${i+1} failed (status ${res?.status}), retrying in ${waitMs}ms...`);
-      await new Promise(r => setTimeout(r, waitMs));
-    } catch (e) {
-      console.warn(`Fetch err on attempt ${i+1}:`, e);
-      await new Promise(r => setTimeout(r, 2000));
+      if (success) break;
+      await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
     }
+    if (success) break;
   }
 
-  if (!res || !res.ok || text.includes("Starting Server...")) {
-      console.error("Failed to fetch OSM data after retries:", text?.substring(0, 200));
+  if (!success || !text) {
+      console.error("Failed to fetch OSM data from all public mirrors after retries.");
       return [];
   }
 
