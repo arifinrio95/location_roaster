@@ -17,6 +17,55 @@ async function startServer() {
 
   app.use(express.json({ limit: "10mb" }));
 
+  // In-Memory Rate Limiter
+  const ipRequests = new Map<string, number[]>();
+  const RATE_LIMIT_MAX = 10;
+  const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+  function getClientIp(req: express.Request): string {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (forwarded) {
+       return (typeof forwarded === "string" ? forwarded : forwarded[0]).split(',')[0].trim();
+    }
+    return req.ip || "unknown";
+  }
+
+  function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const requests = ipRequests.get(ip) || [];
+    const validRequests = requests.filter(time => now - time < RATE_LIMIT_WINDOW_MS);
+    
+    if (validRequests.length >= RATE_LIMIT_MAX) {
+      ipRequests.set(ip, validRequests); // cleanup
+      return false;
+    }
+    
+    validRequests.push(now);
+    ipRequests.set(ip, validRequests);
+    return true;
+  }
+
+  // In-Memory Caches
+  const overpassCache = new Map<string, { data: any, expiresAt: number }>();
+  const roastCache = new Map<string, { data: RoastResult, expiresAt: number }>();
+
+  // Async Jobs State
+  interface JobState {
+    status: "pending" | "processing" | "completed" | "error";
+    result?: RoastResult;
+    error?: string;
+    expiresAt: number;
+  }
+  const jobs = new Map<string, JobState>();
+
+  // Cleanup old jobs periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, job] of jobs.entries()) {
+      if (job.expiresAt < now) jobs.delete(id);
+    }
+  }, 10 * 60 * 1000);
+
   // Proxy for Nominatim to avoid CORS and 429 on client side
   app.get("/api/nominatim", async (req, res) => {
     const { q } = req.query;
@@ -62,6 +111,13 @@ async function startServer() {
       const { query } = req.body;
       if (!query) {
         return res.status(400).json({ error: "Missing query" });
+      }
+
+      const cacheKey = query;
+      const cached = overpassCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        console.log("[Overpass Proxy] Cache hit!");
+        return res.json(cached.data);
       }
 
       const endpoints = [
@@ -138,6 +194,7 @@ async function startServer() {
 
       try {
         const data = JSON.parse(responseText);
+        overpassCache.set(cacheKey, { data, expiresAt: Date.now() + 24 * 60 * 60 * 1000 }); // 24h cache
         res.json(data);
       } catch (err: any) {
         console.error("[Overpass Proxy] JSON parse error. Raw response:", responseText.substring(0, 500));
@@ -773,23 +830,78 @@ Return JSON sesuai schema.`;
   // POST endpoint to handle the queueing and roasting pipeline
   app.post("/api/roast", async (req, res) => {
     try {
+      const clientIp = getClientIp(req);
+      if (!checkRateLimit(clientIp)) {
+         return res.status(429).json({ error: "Terlalu banyak permintaan. Silakan coba lagi 1 jam kemudian." });
+      }
+
       const { location, amenities } = req.body;
       if (!location || !amenities) {
         return res.status(400).json({ error: "Missing location or amenities" });
       }
       
-      console.log(`[API ROAST] Queueing request for: ${location.displayName}`);
+      const cacheKey = `${Math.round(location.lat * 1000) / 1000},${Math.round(location.lng * 1000) / 1000}`;
+      const cached = roastCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        console.log(`[API ROAST] Cache hit for: ${location.displayName}`);
+        const jobId = `cached-${Date.now()}`;
+        jobs.set(jobId, {
+          status: "completed",
+          result: cached.data,
+          expiresAt: Date.now() + 60 * 60 * 1000 // 1 hour for frontend to grab
+        });
+        return res.json({ jobId });
+      }
       
-      const result = await roastQueue.add(async () => {
-        console.log(`[API ROAST] Starting execution for: ${location.displayName}`);
-        return await executeRoastPipeline(location, amenities);
+      const jobId = `job-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      jobs.set(jobId, { status: "pending", expiresAt: Date.now() + 60 * 60 * 1000 });
+      
+      console.log(`[API ROAST] Queueing job ${jobId} for: ${location.displayName}`);
+      
+      roastQueue.add(async () => {
+        const job = jobs.get(jobId);
+        if (!job) return; // Expired or deleted
+        
+        job.status = "processing";
+        console.log(`[API ROAST] Starting execution for job ${jobId}`);
+        try {
+           const result = await executeRoastPipeline(location, amenities);
+           job.status = "completed";
+           job.result = result;
+           roastCache.set(cacheKey, { data: result, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 }); // 7 days
+           console.log(`[API ROAST] Successfully completed job ${jobId}`);
+        } catch (e: any) {
+           console.error(`[API ROAST] Error executing job ${jobId}:`, e);
+           job.status = "error";
+           job.error = e.message;
+        }
       });
       
-      console.log(`[API ROAST] Successfully completed: ${location.displayName}`);
-      res.json(result);
+      res.json({ jobId });
     } catch (e: any) {
-      console.error("[API ROAST] Error executing pipeline:", e);
+      console.error("[API ROAST] Error queueing job:", e);
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET endpoint to poll job status
+  app.get("/api/roast/status", (req, res) => {
+    const { jobId } = req.query;
+    if (!jobId || typeof jobId !== "string") {
+      return res.status(400).json({ error: "Missing jobId" });
+    }
+
+    const job = jobs.get(jobId);
+    if (!job) {
+      return res.status(404).json({ error: "Job not found or expired" });
+    }
+
+    if (job.status === "completed") {
+      res.json({ status: job.status, result: job.result });
+    } else if (job.status === "error") {
+      res.json({ status: job.status, error: job.error });
+    } else {
+      res.json({ status: job.status });
     }
   });
 
